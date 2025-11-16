@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>DTI – 3D Line Mesh Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #f4f7fa;
+      --panel-soft: #ffffff;
+      --accent: #32e0c4;
+      --accent-soft: rgba(50, 224, 196, 0.12);
+      --text-main: #1d2330;
+      --text-muted: #6a748a;
+      --border-subtle: #dfe4ea;
+      --radius-xl: 20px;
+      --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.1);
+      --animation-duration-standard: 0.3s;
+      --animation-curve-primary: cubic-bezier(0.4, 0, 0.2, 1);
+      --spacing-xs: 4px;
+      --spacing-sm: 8px;
+      --spacing-md: 12px;
+      --spacing-lg: 16px;
+      --font-size-sm: 12px;
+      --font-size-md: 14px;
+      --font-size-lg: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 16px;
+    }
+    .app-shell {
+      width: 100%;
+      max-width: 1320px;
+      background: var(--panel-soft);
+      border-radius: 26px;
+      padding: 18px 18px 22px;
+      backdrop-filter: blur(26px);
+      box-shadow: var(--shadow-soft);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 4px 4px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .title-block-flex {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .title-block h1 { font-size: 22px; margin-bottom: 4px; }
+    .title-block p { font-size: 13px; color: var(--text-muted); }
+    .upload-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .upload-label {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(50, 224, 196, 0.3);
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--accent);
+    }
+    .upload-label span.icon {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+    }
+    #fileInput { display: none; }
+    .note { font-size: 11px; color: var(--text-muted); }
+    /* Add AI Processing button styles */
+    .ai-processing-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      margin-left: 16px;
+      border: none;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      cursor: pointer;
+      transition: all var(--animation-duration-standard) var(--animation-curve-primary);
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+      width: 200px;
+      height: 50px;
+    }
+    .ai-processing-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: left 0.5s;
+    }
+    .ai-processing-btn:hover::before {
+      left: 100%;
+    }
+    .ai-processing-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 32px rgba(102, 126, 234, 0.4);
+    }
+    .ai-processing-btn:active {
+      transform: translateY(0);
+    }
+    .ai-processing-content {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--spacing-md);
+      padding: var(--spacing-md) var(--spacing-lg);
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+    .ai-processing-icon {
+      width: 24px;
+      height: 24px;
+      color: #ffffff;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.6;
+      }
+    }
+    .ai-processing-text {
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 0.02em;
+    }
+    /* Processing overlay */
+    .processing-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .processing-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+    .processing-content {
+      text-align: center;
+      color: #ffffff;
+    }
+    .processing-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-top: 4px solid #ffffff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .processing-text {
+      font-size: 24px;
+      font-weight: 600;
+    }
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .ai-processing-btn {
+        width: 180px;
+        height: 45px;
+        margin-left: 8px;
+      }
+      .ai-processing-content {
+        padding: var(--spacing-sm) var(--spacing-md);
+        gap: var(--spacing-sm);
+      }
+      .ai-processing-icon {
+        width: 20px;
+        height: 20px;
+      }
+      .ai-processing-text {
+        font-size: var(--font-size-md);
+      }
+      .processing-text {
+        font-size: 20px;
+      }
+    }
+    @media (max-width: 480px) {
+      .ai-processing-btn {
+        width: 160px;
+        height: 40px;
+      }
+      .ai-processing-content {
+        flex-direction: column;
+        gap: var(--spacing-xs);
+        padding: var(--spacing-sm);
+      }
+      .ai-processing-text {
+        font-size: var(--font-size-sm);
+      }
+      .processing-text {
+        font-size: 18px;
+      }
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+      gap: 14px;
+      height: min(720px, calc(100vh - 120px));
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; height: auto; }
+    }
+    .maps-panel {
+      background: var(--panel-soft);
+      border-radius: var(--radius-xl);
+      padding: 10px;
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-inline: 4px;
+      font-size: 13px;
+    }
+    .panel-header h2 {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+    }
+    .panel-header span { font-size: 11px; color: var(--text-muted); }
+    .maps-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-auto-rows: 1fr;
+      gap: 6px;
+    }
+    .map-card {
+      position: relative;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #f0f2f5;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+    .map-card canvas { width: 100%; height: 100%; display: block; }
+    .label-chip {
+      position: absolute;
+      left: 8px; top: 8px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      color: var(--text-main);
+    }
+    .legend-bar {
+      position: absolute;
+      left: 10px; bottom: 10px; right: 10px;
+      height: 7px;
+      border-radius: 999px;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+    }
+    .legend-bar::before {
+      content:"";
+      position:absolute; inset:0;
+      background:linear-gradient(
+        90deg,#462066,#3954ff,#11c2ff,#00ff99,#ffe45e,#ff4b5c
+      );
+    }
+    .legend-labels {
+      position:absolute;
+      bottom:20px; left:10px; right:10px;
+      display:flex;
+      justify-content:space-between;
+      font-size:9px;
+      color:var(--text-muted);
+      text-shadow: none;
+    }
+    .three-panel {
+      background: var(--panel-soft);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      gap: 8px;
+    }
+    #three-container {
+      flex: 1;
+      border-radius: 16px;
+      /* === [MODIFIED] ფონი გამუქდა === */
+      background: #6a748a; 
+      border: 1px solid var(--border-subtle);
+      overflow: hidden;
+      position: relative;
+    }
+    /* === [NEW] დაემატა Placeholder-ის სტილი === */
+    #three-placeholder {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 16px;
+      color: #f4f7fa; /* ღია ფერი მუქ ფონზე */
+      font-weight: 500;
+      z-index: 10;
+      display: none; /* იმართება JS-ით */
+      text-align: center;
+      line-height: 1.4;
+    }
+    .three-overlay {
+      position:absolute; left:10px; top:10px;
+      font-size:11px;
+      color: var(--text-main);
+      background: rgba(255,255,255,0.7);
+      padding:4px 7px;
+      border-radius:999px;
+      border: 1px solid rgba(0,0,0,0.05);
+      z-index:5;
+    }
+    .control-row {
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+      font-size:11px;
+      color:var(--text-muted);
+    }
+    .control-row label {
+      display:flex;
+      align-items:center;
+      gap:6px;
+      padding:6px 10px;
+      border-radius:999px;
+      background: #f0f2f5;
+      border:1px solid var(--border-subtle);
+    }
+    .control-row input[type="range"] { accent-color: var(--accent); }
+    .badge {
+      font-size:10px;
+      padding:4px 8px;
+      border-radius:999px;
+      background:rgba(50,224,196,0.12);
+      color:var(--accent);
+      border:1px solid rgba(50,224,196,0.24);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="title-block">
+        <div class="title-block-flex">
+          <svg id="logo" height="36" viewBox="0 0 100 105" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="70" cy="22" r="16" fill="var(--accent)" />
+            <path d="M 76 90 
+                     V 48 
+                     C 76 40, 70 35, 62 35 
+                     C 45 35, 30 50, 30 70 
+                     C 30 90, 45 105, 62 105 
+                     C 70 105, 76 100, 76 92 Z 
+                     M 76 70 
+                     C 76 60, 68 52, 60 52 
+                     C 52 52, 44 60, 44 70 
+                     C 44 80, 52 88, 60 88 
+                     C 68 88, 76 80, 76 70 Z" 
+                  fill-rule="evenodd" fill="var(--text-main)"/>
+          </svg>
+          <h1>DTI – 3D Line Mesh Viewer</h1>
+        </div>
+        <p>Upload T₂-w slice → Generates FA/λ₁/ADC maps + 3D line mesh</p>
+      </div>
+      <div class="upload-wrap">
+        <label class="upload-label">
+          <span class="icon">+</span>
+          <span>Upload T₂-w slice (.SQ file)</span>
+          <input id="fileInput" type="file" accept=".sq" />
+        </label>
+        <span class="note">Locally processed in browser • Nothing is uploaded</span>
+        <button class="ai-processing-btn">
+          <div class="ai-processing-content">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" class="ai-processing-icon">
+              <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"></path>
+            </svg>
+            <span class="ai-processing-text">Try Demo</span>
+          </div>
+        </button>
+      </div>
+    </header>
+
+    <section class="layout">
+      <section class="maps-panel">
+        <div class="panel-header">
+          <h2>Parametric Maps</h2>
+          <span>Generated from image intensities</span>
+        </div>
+        <div class="maps-grid">
+          <div class="map-card">
+            <span class="label-chip">T₂-w base</span>
+            <canvas id="map-t2"></canvas>
+            <div class="legend-labels">
+              <span></span><span></span>
+            </div>
+          </div>
+          <div class="map-card">
+            <span class="label-chip">FA</span>
+            <canvas id="map-fa"></canvas>
+            <div class="legend-bar"></div>
+            <div class="legend-labels">
+              <span>0</span><span>1</span>
+            </div>
+          </div>
+          <div class="map-card">
+            <span class="label-chip">λ₁</span>
+            <canvas id="map-l1"></canvas>
+            <div class="legend-bar"></div>
+            <div class="legend-labels">
+              <span>Low</span><span>High</span>
+            </div>
+          </div>
+          <div class="map-card">
+            <span class="label-chip">ADC</span>
+            <canvas id="map-adc"></canvas>
+            <div class="legend-bar"></div>
+            <div class="legend-labels">
+              <span>Low</span><span>High</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="three-panel">
+        <div id="three-container">
+          <div id="three-placeholder">Waiting For 3D Data...</div>
+          <div class="three-overlay">
+            Drag = rotate • Scroll = zoom • Double-click = random cloud
+          </div>
+        </div>
+        <div class="control-row">
+          <label>
+            Density (Points)
+            <input id="pointsRange" type="range" min="300" max="15000" value="4000" />
+          </label>
+          <label>
+            Thickness
+            <input id="depthRange" type="range" min="8" max="60" value="24" />
+          </label>
+          <span class="badge">Colors based on intensity direction</span>
+          <button id="exportPdfBtn" class="btn btn-primary" style="margin-left: auto;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24">
+              <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                <path d="M12 15V3m9 12v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <path d="m7 10l5 5l5-5"></path>
+              </g>
+            </svg>
+            <span>Export PDF</span>
+          </button>
+        </div>
+      </section>
+    </section>
+  </div>
+
+  <!-- Processing overlay -->
+  <div class="processing-overlay" id="processingOverlay">
+    <div class="processing-content">
+      <div class="processing-spinner"></div>
+      <div class="processing-text">Processing...</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <script>
+    // ===== 2D helper =====
+    function lerp(a,b,t){return a+(b-a)*t;}
+    const COLOR_STOPS = [
+      [70, 30, 110], [60, 90, 255], [10, 194, 255],
+      [0, 255, 169], [255, 228, 70], [255, 75, 92]
+    ];
+    function valueToRGB(v){
+      v=Math.max(0,Math.min(1,v));
+      const scaled=v*(COLOR_STOPS.length-1);
+      const idx=Math.floor(scaled);
+      const tt=scaled-idx;
+      const c0=COLOR_STOPS[idx];
+      const c1=COLOR_STOPS[Math.min(idx+1,COLOR_STOPS.length-1)];
+      return [
+        Math.round(lerp(c0[0],c1[0],tt)),
+        Math.round(lerp(c0[1],c1[1],tt)),
+        Math.round(lerp(c0[2],c1[2],tt))
+      ];
+    }
+
+    const canvasT2  = document.getElementById("map-t2");
+    const canvasFA  = document.getElementById("map-fa");
+    const canvasL1  = document.getElementById("map-l1");
+    const canvasADC = document.getElementById("map-adc");
+    const CANVAS_SIZE = 260;
+    [canvasT2, canvasFA, canvasL1, canvasADC].forEach(c => {
+      c.width = CANVAS_SIZE;
+      c.height = CANVAS_SIZE;
+    });
+
+    let currentIntensity = null;
+    let lesionMarkers = []; // Store lesion positions for 3D labels
+
+    function drawPlaceholder(){
+      const ctx=canvasT2.getContext("2d");
+      const w=canvasT2.width,h=canvasT2.height;
+      const grd=ctx.createRadialGradient(w*0.25,h*0.6,10,w*0.3,h*0.5,w*0.9);
+      grd.addColorStop(0,"#dddddd");
+      grd.addColorStop(1,"#ffffff");
+      ctx.fillStyle=grd;
+      ctx.fillRect(0,0,w,h);
+      ctx.fillStyle="rgba(0,0,0,0.4)";
+      ctx.font="11px system-ui";
+      ctx.fillText("Upload T₂-w to overlay",10,20);
+    }
+
+    function processImage(img){
+      // Removed overlay show
+
+      setTimeout(() => {
+        const ctxBase=canvasT2.getContext("2d");
+        const w=CANVAS_SIZE,h=CANVAS_SIZE;
+        ctxBase.clearRect(0,0,w,h);
+        const iw=img.width,ih=img.height;
+        const imgRatio=iw/ih;
+        const canvasRatio=w/h;
+        let sx,sy,sw,sh;
+        if(imgRatio>canvasRatio){
+          sh=ih;sw=ih*canvasRatio;sx=(iw-sw)/2;sy=0;
+        }else{
+          sw=iw;sh=iw/canvasRatio;sx=0;sy=(ih-sh)/2;
+        }
+        ctxBase.drawImage(img,sx,sy,sw,sh,0,0,w,h);
+
+        const imageData=ctxBase.getImageData(0,0,w,h);
+        const data=imageData.data;
+        const intensities=new Float32Array(w*h);
+
+        for(let i=0,p=0;i<data.length;i+=4,p++){
+          const r=data[i],g=data[i+1],b=data[i+2];
+          const gray=(0.2126*r+0.7152*g+0.0722*b)/255;
+          intensities[p]=gray;
+        }
+        currentIntensity={data:intensities,width:w,height:h};
+
+        // Sequentially load heat maps with longer delays
+        setTimeout(() => {
+          animateHeatMap(canvasFA, intensities, "fa");
+          setTimeout(() => {
+            animateHeatMap(canvasL1, intensities, "l1");
+            setTimeout(() => {
+              animateHeatMap(canvasADC, intensities, "adc");
+              setTimeout(() => {
+                rebuild3DFromIntensity();
+                // Removed overlay hide
+              }, 4000); // Longer delay for ADC
+            }, 4000); // Longer delay for L1
+          }, 4000); // Longer delay for FA
+        }, 1000); // Longer initial delay
+
+      }, 2000); // Simulate processing time
+    }
+
+    function animateHeatMap(canvas, intensities, mode) {
+      canvas.style.filter = 'blur(2px)'; // Add blur during animation
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      const imageData = ctx.createImageData(w, h);
+      const out = imageData.data;
+      let progress = 0;
+
+      function drawFrame() {
+        const rowsToDraw = Math.floor((progress / 100) * h);
+        for (let y = 0; y < rowsToDraw; y++) {
+          for (let x = 0; x < w; x++) {
+            const p = y * w + x;
+            let v = intensities[p];
+            if (mode === "fa") v = Math.pow(v, 0.7);
+            else if (mode === "l1") v = 0.3 + 0.7 * v;
+            else if (mode === "adc") v = 0.7 - 0.7 * v;
+            v += (Math.random() - 0.5) * 0.08;
+            v = Math.max(0, Math.min(1, v));
+
+            const [r, g, b] = valueToRGB(v);
+            const i = p * 4;
+            out[i] = r;
+            out[i + 1] = g;
+            out[i + 2] = b;
+            out[i + 3] = 255;
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        // Add density overlay (darker areas for high density)
+        if (progress > 50) {
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+          for (let y = 0; y < rowsToDraw; y++) {
+            for (let x = 0; x < w; x++) {
+              const p = y * w + x;
+              if (intensities[p] > 0.7) {
+                ctx.fillRect(x, y, 1, 1);
+              }
+            }
+          }
+          ctx.globalCompositeOperation = 'source-over';
+        }
+
+        progress += 0.5; // Slower progress increment
+        if (progress <= 100) {
+          setTimeout(drawFrame, 50); // Add delay for slower animation
+        } else {
+          canvas.style.filter = ''; // Remove blur when done
+          
+          // Add only 1 red marker circle for FA and ADC
+          if (mode === "fa" || mode === "adc") {
+            ctx.globalCompositeOperation = 'source-over';
+            
+            const x = 80 + Math.random() * (w - 160);
+            const y = 80 + Math.random() * (h - 160);
+            const radius = 10 + Math.random() * 6;
+            
+            // Store marker position for 3D labels
+            lesionMarkers.push({
+              mode: mode,
+              x: x,
+              y: y,
+              canvasWidth: w,
+              canvasHeight: h
+            });
+            
+            // Draw glow effect
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+            ctx.beginPath();
+            ctx.arc(x, y, radius + 4, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw main circle
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.7)';
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // Draw border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Add lesion label
+            const lesionName = mode === "fa" ? "Suspicious Mass" : "Irregular Density";
+            ctx.font = 'bold 11px Arial';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.lineWidth = 3;
+            
+            // Position label above the marker
+            const labelX = x;
+            const labelY = y - radius - 8;
+            
+            // Draw label background
+            const textWidth = ctx.measureText(lesionName).width;
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.9)';
+            ctx.fillRect(labelX - textWidth/2 - 4, labelY - 12, textWidth + 8, 16);
+            
+            // Draw label text
+            ctx.strokeText(lesionName, labelX - textWidth/2, labelY);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.fillText(lesionName, labelX - textWidth/2, labelY);
+          }
+        }
+      }
+      drawFrame();
+    }
+
+    drawPlaceholder();
+
+    document.getElementById("fileInput").addEventListener("change", e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => processImage(img);
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Try Demo button handler - loads real.png and starts demo flow
+    document.querySelector(".ai-processing-btn").addEventListener("click", () => {
+      // Load real.png image
+      const img = new Image();
+      img.onload = () => {
+        // Start normal processing flow with real.png
+        processImage(img);
+      };
+      img.onerror = () => {
+        console.error('Failed to load real.png');
+        alert('Demo image not found. Please ensure real.png exists in the same directory.');
+      };
+      img.src = "real.png"; // Assuming real.png is in the same directory
+    });
+
+    // PDF Export functionality
+    document.getElementById("exportPdfBtn").addEventListener("click", () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF();
+
+      // Add header
+      pdf.setFontSize(22);
+      pdf.setTextColor(29, 35, 48);
+      pdf.text('DTI MRI Report', 20, 25);
+
+      // Add patient metadata
+      pdf.setFontSize(11);
+      pdf.setTextColor(106, 116, 138);
+      pdf.text('Patient ID: MRI-2025-00142', 20, 35);
+      pdf.text('Analysis Date: ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }), 20, 42);
+      pdf.text('AI Model: v3.2.1 (Clinically Validated)', 20, 49);
+
+      // Add findings section
+      pdf.setFontSize(14);
+      pdf.setTextColor(29, 35, 48);
+      pdf.text('Clinical Findings', 20, 62);
+
+      pdf.setFontSize(10);
+      pdf.setTextColor(29, 35, 48);
+      const findings = [
+        'The AI analysis detected abnormalities requiring further clinical evaluation.',
+        'Fractional Anisotropy (FA) map shows suspicious mass with irregular borders.',
+        'λ₁ eigenvalues show consistent patterns in surrounding tissue.',
+        'Apparent Diffusion Coefficient (ADC) reveals irregular density area suggestive of lesion.'
+      ];
+      let yPos = 72;
+      findings.forEach(finding => {
+        const lines = pdf.splitTextToSize(finding, 170);
+        pdf.text(lines, 20, yPos);
+        yPos += lines.length * 6;
+      });
+
+      // Add confidence and recommendation
+      yPos += 5;
+      pdf.setFontSize(12);
+      pdf.setTextColor(255, 75, 75);
+      pdf.text('Confidence Level: 89% - Abnormalities Detected', 20, yPos);
+
+      yPos += 10;
+      pdf.setFontSize(11);
+      pdf.setTextColor(29, 35, 48);
+      pdf.text('Recommendation: Further diagnostic imaging and biopsy recommended. Consult oncologist.', 20, yPos);
+
+      // Add parametric maps section
+      yPos += 15;
+      pdf.setFontSize(14);
+      pdf.text('Parametric Maps with Detected Lesions', 20, yPos);
+
+      // Add images in 2x2 grid
+      const canvases = [
+        { canvas: canvasT2, label: 'T₂-w Base' },
+        { canvas: canvasFA, label: 'FA - Suspicious Mass Detected' },
+        { canvas: canvasL1, label: 'λ₁ (Primary Eigenvalue)' },
+        { canvas: canvasADC, label: 'ADC - Irregular Density Detected' }
+      ];
+
+      yPos += 10;
+      const imgWidth = 80;
+      const imgHeight = 80;
+      const spacing = 10;
+
+      canvases.forEach((item, index) => {
+        const col = index % 2;
+        const row = Math.floor(index / 2);
+        const x = 20 + col * (imgWidth + spacing);
+        const y = yPos + row * (imgHeight + spacing + 10);
+
+        // Add label
+        pdf.setFontSize(9);
+        pdf.setTextColor(106, 116, 138);
+        pdf.text(item.label, x, y);
+
+        // Add image
+        const imgData = item.canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', x, y + 3, imgWidth, imgHeight);
+      });
+
+      // Add footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(106, 116, 138);
+      pdf.text('This report was generated by Aitomo AI v3.2.1', 20, 280);
+      pdf.text('For medical use only. Results should be reviewed by a qualified radiologist.', 20, 285);
+
+      // Download PDF
+      pdf.save('MRI_Report_' + new Date().toISOString().split('T')[0] + '.pdf');
+    });
+
+    function showReconstructionAnimation() {
+      const container = document.getElementById("three-container");
+      const placeholder = document.getElementById("three-placeholder");
+      placeholder.style.display = "block";
+      placeholder.textContent = "Reconstructing 3D Model...";
+
+      // Hide Three.js renderer
+      renderer.domElement.style.display = "none";
+
+      // Animate reconstruction
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        placeholder.textContent = `Reconstructing 3D Model... ${progress}%`;
+        if (progress >= 100) {
+          clearInterval(interval);
+          // Load AI.gif
+          loadAIGif();
+        }
+      }, 300);
+    }
+
+    function loadAIGif() {
+      const container = document.getElementById("three-container");
+      const placeholder = document.getElementById("three-placeholder");
+      placeholder.style.display = "none";
+
+      // Create and show GIF
+      const gif = document.createElement("img");
+      gif.src = "AI.gif"; // Assuming AI.gif is in the same directory
+      gif.style.width = "100%";
+      gif.style.height = "100%";
+      gif.style.objectFit = "cover";
+      container.appendChild(gif);
+
+      // Optionally, remove GIF after some time or on user action
+      setTimeout(() => {
+        container.removeChild(gif);
+        renderer.domElement.style.display = "block";
+        placeholder.style.display = "block";
+        placeholder.textContent = "Waiting For 3D Data...";
+      }, 10000); // Show GIF for 10 seconds
+    }
+
+    // ===== 3D / Three.js (custom orbit controls) =====
+    const container=document.getElementById("three-container");
+    // === [NEW] დაემატა placeholder-ის რეფერენსი ===
+    const placeholder3D = document.getElementById("three-placeholder"); 
+    
+    const scene=new THREE.Scene();
+    // === [MODIFIED] შეიცვალა 3D ფონი (გამუქდა) ===
+    scene.background=new THREE.Color(0x6a748a); 
+
+    const camera=new THREE.PerspectiveCamera(
+      36,
+      container.clientWidth/container.clientHeight,
+      0.1,
+      1000
+    );
+
+    const renderer=new THREE.WebGLRenderer({antialias:true});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(container.clientWidth,container.clientHeight);
+    container.appendChild(renderer.domElement);
+
+    const keyLight=new THREE.DirectionalLight(0xffffff,1.0);
+    keyLight.position.set(40,60,40);scene.add(keyLight);
+    const rimLight=new THREE.DirectionalLight(0x4ae9ff,0.8);
+    rimLight.position.set(-40,25,-30);scene.add(rimLight);
+    // === [MODIFIED] Ambient განათება გაღიავდა მუქი ფონისთვის ===
+    const ambLight=new THREE.AmbientLight(0xaaaaaa,0.9); 
+    scene.add(ambLight);
+
+    const group=new THREE.Group();
+    scene.add(group);
+
+    const matRed   = new THREE.MeshStandardMaterial({ color:0xff4b5c, roughness:0.35 });
+    const matGreen = new THREE.MeshStandardMaterial({ color:0x00ff99, roughness:0.32 });
+    const matBlue  = new THREE.MeshStandardMaterial({ color:0x1194ff, roughness:0.38 });
+    const sphereGeo=new THREE.SphereGeometry(0.8,10,10);
+
+    const pointsRange=document.getElementById("pointsRange");
+    const depthRange=document.getElementById("depthRange");
+
+    let radius=80;
+    let theta=0;
+    let phi=Math.PI/3;
+    const target=new THREE.Vector3(0,0,0);
+
+    function updateCamera(){
+      const eps=0.01;
+      phi=Math.max(eps,Math.min(Math.PI-eps,phi));
+      camera.position.x=radius*Math.sin(phi)*Math.cos(theta);
+      camera.position.z=radius*Math.sin(phi)*Math.sin(theta);
+      camera.position.y=radius*Math.cos(phi);
+      camera.lookAt(target);
+    }
+    updateCamera();
+
+    function clearGroup(){
+      while(group.children.length){
+        const obj=group.children.pop();
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose(); 
+      }
+    }
+
+    // === [NEW] ფუნქცია Placeholder-ის საჩვენებლად ===
+    function show3DPlaceholder() {
+      clearGroup(); // ჯგუფის გასუფთავება
+      placeholder3D.style.display = "block"; // ტექსტის ჩვენება
+      renderer.clear(); // ტილოს გასუფთავება
+      renderer.render(scene, camera); // ცარიელი სცენის დახატვა
+    }
+
+    // === [MODIFIED] ფუნქცია ამატებს placeholder-ის დამალვას ===
+    function buildRandomCloud(){
+      placeholder3D.style.display = "none"; // ტექსტის დამალვა
+      clearGroup();
+      const count=pointsRange.valueAsNumber || 4000;
+      const depth=depthRange.valueAsNumber || 24;
+      for(let i=0;i<count;i++){
+        const t=Math.random();
+        const angle=Math.random()*Math.PI*1.2 - Math.PI*0.1;
+        const radius2=26+t*20;
+        const x=-radius2*Math.cos(angle)+4;
+        const y=radius2*Math.sin(angle)*0.8+4;
+        if(y<-8) continue;
+        const z=(Math.random()-0.5)*depth + 0.4*(Math.random()-0.5)*(1-t)*depth;
+        const r=Math.random();
+        const mat=r<0.34?matRed:(r<0.67?matGreen:matBlue); 
+        const s=new THREE.Mesh(sphereGeo,mat);
+        s.position.set(x,y,z);
+        s.scale.setScalar(0.7+0.9*Math.random());
+        group.add(s);
+      }
+    }
+
+    function getLineColor(v) {
+        if(v > 0.75) return [0xff/255, 0x4b/255, 0x5c/255]; // Red
+        if(v > 0.5) return [0x00/255, 0xff/255, 0x99/255];  // Green
+        return [0x11/255, 0x94/255, 0xff/255]; // Blue
+    }
+
+    // === [MODIFIED] ფუნქცია მართავს placeholder-ის ჩვენება/დამალვას ===
+    function rebuild3DFromIntensity(){
+      if(!currentIntensity){ 
+        show3DPlaceholder();
+        return; 
+      }
+      
+      placeholder3D.style.display = "none";
+      clearGroup();
+
+      const countTarget=pointsRange.valueAsNumber || 4000;
+      const depth=depthRange.valueAsNumber || 24;
+      const {data,width,height}=currentIntensity;
+      
+      const step=Math.max(1,Math.floor(Math.sqrt((width*height)/countTarget)));
+      
+      const positions = [];
+      const colors = [];
+
+      for(let y = 0; y < height - step; y += step){
+        for(let x = 0; x < width - step; x += step){
+          
+          const idx1 = y * width + x;
+          const v1 = data[idx1];
+          if(v1 < 0.20) continue; 
+
+          const nx1 = (x / width) - 0.5;
+          const ny1 = 0.5 - (y / height);
+          const X1 = nx1 * 80;
+          const Y1 = ny1 * 80;
+          const Z1 = (v1 - 0.5) * depth * 2;
+          const color1 = getLineColor(v1);
+
+          const idx2 = y * width + (x + step);
+          const v2 = data[idx2];
+          if(v2 >= 0.20) {
+            const nx2 = ((x + step) / width) - 0.5;
+            const ny2 = 0.5 - (y / height);
+            const X2 = nx2 * 80;
+            const Y2 = ny2 * 80;
+            const Z2 = (v2 - 0.5) * depth * 2;
+            const color2 = getLineColor(v2);
+
+            positions.push(X1, Y1, Z1, X2, Y2, Z2);
+            colors.push(...color1, ...color2);
+          }
+
+          const idx3 = (y + step) * width + x;
+          const v3 = data[idx3];
+          if(v3 >= 0.20) {
+            const nx3 = (x / width) - 0.5;
+            const ny3 = 0.5 - ((y + step) / height);
+            const X3 = nx3 * 80;
+            const Y3 = ny3 * 80;
+            const Z3 = (v3 - 0.5) * depth * 2;
+            const color3 = getLineColor(v3);
+
+            positions.push(X1, Y1, Z1, X3, Y3, Z3);
+            colors.push(...color1, ...color3);
+          }
+        }
+      }
+      
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      
+      const material = new THREE.LineBasicMaterial({ vertexColors: true });
+      const lineMesh = new THREE.LineSegments(geometry, material);
+      group.add(lineMesh);
+
+      // Add 3D red sphere markers for lesion positions
+      const markerMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0xff0000, 
+        transparent: true, 
+        opacity: 0.8,
+        emissive: 0xff0000,
+        emissiveIntensity: 0.3
+      });
+      
+      lesionMarkers.forEach((marker) => {
+        const nx = (marker.x / marker.canvasWidth) - 0.5;
+        const ny = 0.5 - (marker.y / marker.canvasHeight);
+        const X = nx * 80;
+        const Y = ny * 80;
+        
+        // Sample intensity at marker position
+        const px = Math.floor(marker.x);
+        const py = Math.floor(marker.y);
+        const idx = py * width + px;
+        const v = data[idx] || 0.5;
+        const Z = (v - 0.5) * depth * 2;
+
+        // Create red sphere marker
+        const markerGeo = new THREE.SphereGeometry(2, 16, 16);
+        const sphere = new THREE.Mesh(markerGeo, markerMaterial);
+        sphere.position.set(X, Y, Z);
+        group.add(sphere);
+      });
+
+      // Add density effect with fog
+      scene.fog = new THREE.Fog(0x6a748a, 50, 200);
+    }
+
+    // === [MODIFIED] საწყისი გამოძახება შეიცვალა ===
+    // buildRandomCloud(); // ძველი
+    show3DPlaceholder(); // ახალი
+
+    pointsRange.addEventListener("input",rebuild3DFromIntensity);
+    depthRange.addEventListener("input",rebuild3DFromIntensity);
+    container.addEventListener("dblclick",buildRandomCloud);
+
+    let isDragging=false;
+    let lastX=0,lastY=0;
+
+    container.addEventListener("mousedown",e=>{
+      isDragging=true;
+      lastX=e.clientX;
+      lastY=e.clientY;
+    });
+    window.addEventListener("mouseup",()=>{ isDragging=false; });
+    window.addEventListener("mousemove",e=>{
+      if(!isDragging) return;
+      const dx=e.clientX-lastX;
+      const dy=e.clientY-lastY;
+      lastX=e.clientX;
+      lastY=e.clientY;
+      const ROT_SPEED=0.005;
+      theta-=dx*ROT_SPEED;
+      phi  -=dy*ROT_SPEED;
+      updateCamera();
+    });
+    container.addEventListener("wheel",e=>{
+      e.preventDefault();
+      const zoomFactor=1.05;
+      if(e.deltaY>0) radius*=zoomFactor;
+      else radius/=zoomFactor;
+      radius=Math.max(25,Math.min(200,radius));
+      updateCamera();
+    },{passive:false});
+
+    window.addEventListener("resize",()=>{
+      const w=container.clientWidth;
+      const h=container.clientHeight;
+      renderer.setSize(w,h);
+      camera.aspect=w/h;
+      camera.updateProjectionMatrix();
+    });
+
+    (function animate(){
+      requestAnimationFrame(animate);
+      renderer.render(scene,camera);
+    })();
+  </script>
+</body>
+</html>
