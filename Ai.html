@@ -665,115 +665,110 @@
         }
         currentIntensity={data:intensities,width:w,height:h};
 
-        // Sequential/overlapping heatmap load: start next when current reaches 50%
-        setTimeout(() => {
-          let l1Started = false;
-          let adcStarted = false;
+        // Sequential loading with completion-based triggers for better mobile performance
+         setTimeout(() => {
+          // Chain animations sequentially for better mobile stability
+          animateHeatMap(canvasFA, intensities, "fa", null, () => {
+            // FA complete, wait a bit then start L1
+            setTimeout(() => {
+              animateHeatMap(canvasL1, intensities, "l1", null, () => {
+                // L1 complete, wait a bit then start ADC
+                setTimeout(() => {
+                  animateHeatMap(canvasADC, intensities, "adc", null, () => {
+                    // All complete, rebuild 3D
+                    setTimeout(() => {
+                      rebuild3DFromIntensity();
+                    }, 300);
+                  });
+                }, 200);
+              });
+            }, 200);
+          });
+         }, 1000); // Slight initial delay for simulated processing
 
-          animateHeatMap(canvasFA, intensities, "fa",
-            // onProgress for FA
-            (progress) => {
-              if (progress >= 50 && !l1Started) {
-                l1Started = true;
-                animateHeatMap(canvasL1, intensities, "l1",
-                  // onProgress for L1
-                  (progressL1) => {
-                    if (progressL1 >= 50 && !adcStarted) {
-                      adcStarted = true;
-                      animateHeatMap(canvasADC, intensities, "adc", null, () => {
-                        rebuild3DFromIntensity();
-                      });
-                    }
-                  },
-                  // onComplete for L1
-                  () => { /* L1 complete */ }
-                );
-              }
-            },
-            // onComplete for FA
-            () => { /* FA complete */ }
-          );
-        }, 1000); // Slight initial delay for simulated processing
-
-      }, 2000); // Simulate processing time
+       }, 2000); // Simulate processing time
     }
 
     function animateHeatMap(canvas, intensities, mode, onProgress, onComplete) {
-      // Store the label chip reference before we start drawing
-      const parentCard = canvas.closest('.map-card');
-      const labelChip = parentCard ? parentCard.querySelector('.label-chip') : null;
-      
-      canvas.style.filter = 'blur(2px)'; // Add blur during animation
-      const ctx = canvas.getContext("2d");
-      const w = canvas.width, h = canvas.height;
-      const imageData = ctx.createImageData(w, h);
-      const out = imageData.data;
-      let progress = 0;
+       // Store the label chip reference before we start drawing
+       const parentCard = canvas.closest('.map-card');
+       const labelChip = parentCard ? parentCard.querySelector('.label-chip') : null;
+       
+       canvas.style.filter = 'blur(2px)'; // Add blur during animation
+       const ctx = canvas.getContext("2d");
+       const w = canvas.width, h = canvas.height;
+       const imageData = ctx.createImageData(w, h);
+       const out = imageData.data;
+       let progress = 0;
+      let animationFrame = null; // Track animation frame for cleanup
 
-      function drawFrame() {
-        const rowsToDraw = Math.floor((progress / 100) * h);
-        for (let y = 0; y < rowsToDraw; y++) {
-          for (let x = 0; x < w; x++) {
-            const p = y * w + x;
-            let v = intensities[p];
-            if (mode === "fa") v = Math.pow(v, 0.7);
-            else if (mode === "l1") v = 0.3 + 0.7 * v;
-            else if (mode === "adc") v = 0.7 - 0.7 * v;
-            v += (Math.random() - 0.5) * 0.08;
-            v = Math.max(0, Math.min(1, v));
+       function drawFrame() {
+         const rowsToDraw = Math.floor((progress / 100) * h);
+         for (let y = 0; y < rowsToDraw; y++) {
+           for (let x = 0; x < w; x++) {
+             const p = y * w + x;
+             let v = intensities[p];
+             if (mode === "fa") v = Math.pow(v, 0.7);
+             else if (mode === "l1") v = 0.3 + 0.7 * v;
+             else if (mode === "adc") v = 0.7 - 0.7 * v;
+             v += (Math.random() - 0.5) * 0.08;
+             v = Math.max(0, Math.min(1, v));
 
-            const [r, g, b] = valueToRGB(v);
-            const i = p * 4;
-            out[i] = r;
-            out[i + 1] = g;
-            out[i + 2] = b;
-            out[i + 3] = 255;
-          }
-        }
-        ctx.putImageData(imageData, 0, 0);
+             const [r, g, b] = valueToRGB(v);
+             const i = p * 4;
+             out[i] = r;
+             out[i + 1] = g;
+             out[i + 2] = b;
+             out[i + 3] = 255;
+           }
+         }
+         ctx.putImageData(imageData, 0, 0);
 
-        // Add density overlay (darker areas for high density)
-        if (progress > 50) {
-          ctx.globalCompositeOperation = 'multiply';
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-          for (let y = 0; y < rowsToDraw; y++) {
-            for (let x = 0; x < w; x++) {
-              const p = y * w + x;
-              if (intensities[p] > 0.7) {
-                ctx.fillRect(x, y, 1, 1);
-              }
-            }
-          }
-          ctx.globalCompositeOperation = 'source-over';
-        }
+         // Add density overlay (darker areas for high density)
+         if (progress > 50) {
+           ctx.globalCompositeOperation = 'multiply';
+           ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+           for (let y = 0; y < rowsToDraw; y++) {
+             for (let x = 0; x < w; x++) {
+               const p = y * w + x;
+               if (intensities[p] > 0.7) {
+                 ctx.fillRect(x, y, 1, 1);
+               }
+             }
+           }
+           ctx.globalCompositeOperation = 'source-over';
+         }
 
-        progress += 0.5; // progress increment
-        // Call progress callback if present
-        if (typeof onProgress === 'function') {
-          try { onProgress(progress); } catch(e){ console.error(e); }
-        }
+         progress += 1.5; // Faster progress increment for mobile
+         // Call progress callback if present
+         if (typeof onProgress === 'function') {
+           try { onProgress(progress); } catch(e){ console.error(e); }
+         }
 
-        if (progress <= 100) {
-          setTimeout(drawFrame, 50); // Add delay for slower animation
-        } else {
-          canvas.style.filter = ''; // Remove blur when done
-          
-          // Add red marker circles for FA and ADC (both get markers)
-          if (mode === "fa" || mode === "adc") {
-            ctx.globalCompositeOperation = 'source-over';
-            
-            // Use consistent positioning based on mode
-            let x, y;
-            if (mode === "fa") {
-              // FA marker - upper left area (matching screenshot position)
-              x = w * 0.28 + (Math.random() - 0.5) * 15;
-              y = h * 0.25 + (Math.random() - 0.5) * 15;
-            } else {
-              // ADC marker - lower right area (matching screenshot position)  
-              x = w * 0.55 + (Math.random() - 0.5) * 15;
-              y = h * 0.70 + (Math.random() - 0.5) * 15;
-            }
-            
+         if (progress <= 100) {
+          // Use requestAnimationFrame for smoother mobile performance
+          animationFrame = requestAnimationFrame(() => {
+            setTimeout(drawFrame, 30); // Reduced delay
+          });
+         } else {
+           canvas.style.filter = ''; // Remove blur when done
+           
+           // Add red marker circles for FA and ADC (both get markers)
+           if (mode === "fa" || mode === "adc") {
+             ctx.globalCompositeOperation = 'source-over';
+             
+             // Use consistent positioning based on mode
+             let x, y;
+             if (mode === "fa") {
+               // FA marker - upper left area (matching screenshot position)
+               x = w * 0.28 + (Math.random() - 0.5) * 15;
+               y = h * 0.25 + (Math.random() - 0.5) * 15;
+             } else {
+               // ADC marker - lower right area (matching screenshot position)  
+               x = w * 0.55 + (Math.random() - 0.5) * 15;
+               y = h * 0.70 + (Math.random() - 0.5) * 15;
+             }
+             
             const radius = 12 + Math.random() * 4;
             
             // Store marker position for 3D labels with exact canvas coordinates
@@ -839,13 +834,23 @@
              labelChip.style.zIndex = '10';
              labelChip.style.pointerEvents = 'none';
            }
-          if (typeof onComplete === 'function') {
-            try { onComplete(); } catch(e){ console.error(e); }
+          
+          // Clean up and call completion callback
+          if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
           }
-         }
-       }
-       drawFrame();
-     }
+          
+           if (typeof onComplete === 'function') {
+            // Small delay before callback to ensure rendering is complete
+            setTimeout(() => {
+              try { onComplete(); } catch(e){ console.error(e); }
+            }, 100);
+           }
+          }
+        }
+        drawFrame();
+      }
 
     drawPlaceholder();
 
