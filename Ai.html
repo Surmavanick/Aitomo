@@ -529,7 +529,7 @@
         <div id="three-container">
           <div id="three-placeholder">Waiting For 3D Data...</div>
           <div class="three-overlay">
-            Drag = rotate • Scroll = zoom • Double-click = random cloud
+            Drag = rotate • Scroll = zoom
           </div>
         </div>
         <div class="control-row">
@@ -1347,7 +1347,6 @@
 
     pointsRange.addEventListener("input",rebuild3DFromIntensity);
     depthRange.addEventListener("input",rebuild3DFromIntensity);
-    container.addEventListener("dblclick",buildRandomCloud);
 
     let isDragging=false;
     let lastX=0,lastY=0;
